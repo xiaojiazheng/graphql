@@ -14,6 +14,6 @@
             "email": "2162621686@qq.com"
         }
     ],
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "require": {}
 }
