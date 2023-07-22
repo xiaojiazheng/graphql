@@ -1,8 +1,8 @@
 <?php
 
-namespace  Xiaobe\graphql\exception\queryaccess;
+namespace  Xiaobe\Graphql\exception\queryaccess;
 
-use  Xiaobe\graphql\exception\QueryAccessException;
+use  Xiaobe\Graphql\exception\QueryAccessException;
 
 class QueryNotAllowException extends QueryAccessException
 {

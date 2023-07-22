@@ -1,8 +1,8 @@
 <?php
 
-namespace  Xiaobe\graphql\test;
+namespace  Xiaobe\Graphql\test;
 
-use Xiaobe\graphql\root\GraphQLService;
+use Xiaobe\Graphql\root\GraphQLService;
 
 class GraphQLController extends GraphQLService
 {

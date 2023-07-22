@@ -1,8 +1,8 @@
 <?php
 
-namespace  Xiaobe\graphql\exception\queryrunning;
+namespace  Xiaobe\Graphql\exception\queryrunning;
 
-use  Xiaobe\graphql\exception\QueryRunningException;
+use  Xiaobe\Graphql\exception\QueryRunningException;
 
 class QueryParseException extends QueryRunningException
 {

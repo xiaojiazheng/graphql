@@ -1,11 +1,11 @@
 <?php
 
-namespace Xiaobe\graphql\root;
+namespace Xiaobe\Graphql\root;
 
 use support\Request;
-use Xiaobe\graphql\exception\HookSetException;
-use Xiaobe\graphql\exception\queryrunning\QueryParseException;
-use Xiaobe\graphql\exception\queryaccess\QueryNotAllowException;
+use Xiaobe\Graphql\exception\HookSetException;
+use Xiaobe\Graphql\exception\queryrunning\QueryParseException;
+use Xiaobe\Graphql\exception\queryaccess\QueryNotAllowException;
 
 
 /**

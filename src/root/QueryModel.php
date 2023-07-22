@@ -1,11 +1,11 @@
 <?php
 
-namespace Xiaobe\graphql\root;
+namespace Xiaobe\Graphql\root;
 
 use support\Model;
 use Illuminate\Database\Query\Builder;
-use Xiaobe\graphql\exception\HookSetException;
-use Xiaobe\graphql\exception\queryrunning\ModelRunningException;
+use Xiaobe\Graphql\exception\HookSetException;
+use Xiaobe\Graphql\exception\queryrunning\ModelRunningException;
 
 /**
  * @author xiaojiazheng <16673800623>
