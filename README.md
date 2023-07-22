@@ -1,159 +1,80 @@
-图表查询和变更服务
-该服务提供了在 Webman 环境下使用 Laravel ORM 模型进行图表查询和变更的功能。
+<h1>图表查询和变更服务</h1>
 
-安装
-通过 Composer 来安装该服务：
+<p>该本插件提供了在 Webman 环境下使用 Laravel ORM 模型进行图表查询和变更的功能。</p>
 
-shell
-composer require xiaobe/graphql
-配置
-在 config/graphql.php 文件中配置数据库连接信息：
+<h2>安装</h2>
 
-php
-'database' => [
-    'default' => 'mysql',
-    'connections' => [
-        'mysql' => [
-            'driver' => 'mysql',
-            'host' => 'localhost',
-            'port' => 3306,
-            'database' => 'your_database_name',
-            'username' => 'your_username',
-            'password' => 'your_password',
-        ],
-    ],
-],
-替换 your_database_name、your_username 和 your_password 分别为你的数据库的名称、用户名和密码。
+<p>通过 Composer 来安装该服务：</p>
 
-在 config/graphql.php 文件中配置 Laravel ORM 模型的命名空间：
+<pre><code>composer require xiaobe/graphql
+</code></pre>
 
-php
-'namespaces' => [
-    'models' => [
-        'App\\Models',
-    ],
-],
-确保将 App\\Models 替换为你的实际模型命名空间。
+<h2>查询配置</h2>
 
-使用方法
-查询数据
-在 app/GraphQL/Queries 目录中创建一个新的查询类，例如 ChartQuery.php。
+<p>本项目是webman插件，确认是否配置数据库连接即可</p>
 
-在你的查询类中定义查询字段和逻辑：
+<p>新建查询模型，继承<code>QueryModel</code></p>
 
-php
-<?php
+<p>新建一个控制器，实现<code>GraphQLService</code>抽象类</p>
 
-namespace App\GraphQL\Queries;
+<p>配置查询模型映射，即可启动</p>
 
-use Rebing\GraphQL\Support\Facades\GraphQL;
-use Rebing\GraphQL\Support\Query;
-use GraphQL\Type\Definition\Type;
-use App\Models\YourModel;
+<p>可选配置查询模型字段禁用</p>
 
-class ChartQuery extends Query
-{
-    protected $attributes = [
-        'name' => 'chart',
-    ];
+<h2>变更服务配置</h2>
 
-    public function type(): Type
-    {
-        return GraphQL::type('YourResultType');
-    }
+<p>暂定</p>
 
-    public function args(): array
-    {
-        return [
-            // 定义查询参数
-            'yourParameter' => ['name' => 'yourParameter', 'type' => Type::string()],
-        ];
-    }
+<h2>使用方法</h2>
 
-    public function resolve($root, $args)
-    {
-        // 查询逻辑
-        $query = YourModel::query();
+<h3>搭建服务</h3>
 
-        if (isset($args['yourParameter'])) {
-            $query->where('your_column', $args['yourParameter']);
-        }
+<p>在控制器目录中创建一个新的控制器继承<code>GraphQLService</code>服务，实现两个set方法</p>
 
-        return $query->get();
-    }
-}
-在 config/graphql.php 文件的 schemas 配置中注册你的查询类：
+<p>在你的控制器里中定义查询模型映射和每个模型禁用的字段：</p>
 
-php
-'schemas' => [
-    'default' => [
-        'query' => [
-            \App\GraphQL\Queries\ChartQuery::class,
-        ],
-        // ...
-    ],
-],
-现在，你可以使用 GraphQL 查询语言来查询数据，并根据需要进行过滤和排序。
+<pre><code>
+namespace  Xiaobe\Graphql\test;
 
-变更数据
-在 app/GraphQL/Mutations 目录中创建一个新的变更类，例如 DataMutation.php。
+use Xiaobe\Graphql\root\GraphQLService;
 
-在你的变更类中定义变更字段和逻辑：
+#### 介绍
+webman库
+请使用laraval ORM 其他自行兼容
+php 7.4
 
-php
-<?php
+#### 软件架构
+软件架构说明
 
-namespace App\GraphQL\Mutations;
 
-use Rebing\GraphQL\Support\Facades\GraphQL;
-use Rebing\GraphQL\Support\Mutation;
-use GraphQL\Type\Definition\Type;
-use App\Models\YourModel;
+#### 安装教程
 
-class DataMutation extends Mutation
-{
-    protected $attributes = [
-        'name' => 'dataMutation',
-    ];
+1.  xxxx
+2.  xxxx
+3.  xxxx
 
-    public function type(): Type
-    {
-        return GraphQL::type('YourResultType');
-    }
+#### 使用说明
 
-    public function args(): array
-    {
-        return [
-            // 定义变更参数
-            'yourParameter' => ['name' => 'yourParameter', 'type' => Type::string(), 'rules' => ['required']],
-        ];
-    }
+1.  xxxx
+2.  xxxx
+3.  xxxx
 
-    public function resolve($root, $args)
-    {
-        // 变更逻辑
-        $data = new YourModel();
-        $data->your_column = $args['yourParameter'];
-        $data->save();
+#### 参与贡献
 
-        return $data;
-    }
-}
-在 config/graphql.php 文件的 schemas 配置中注册你的变更类：
+1.  Fork 本仓库
+2.  新建 Feat_xxx 分支
+3.  提交代码
+4.  新建 Pull Request
 
-php
-'schemas' => [
-    'default' => [
-        'mutation' => [
-            \App\GraphQL\Mutations\DataMutation::class,
-        ],
-        // ...
-    ],
-],
-现在，你可以使用 GraphQL 变更语言来创建新的数据和更新数据。
 
-贡献
-欢迎对该项目进行贡献。如果你发现了问题或有改进建议，请提交 Issue 或 Pull Request。
+#### 特技
+
+1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
+2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
+3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
+4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
+5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
+6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
 
 许可证
 该项目基于 MIT 许可证进行分发。更多信息请参阅 LICENSE 文件。
