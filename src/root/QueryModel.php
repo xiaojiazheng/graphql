@@ -190,6 +190,10 @@ class QueryModel extends Model
         $columns =  array_keys($QLbody['properties']);
         $limit = $addition['limit'] ?? 50;
         $page = $addition['page'] ?? 1;
+        $orderbys = $addition['orderby'];
+        foreach ($orderbys as $field => $direction) {
+            $query->orderBy($field, $direction > 0 ? 'asc' : 'desc');
+        }
         if (isset($addition['groupBy'])) {
             $needSum = array_keys($QLbody['sum']);
             $collection = $query->get(array_merge($columns, $needSum));
