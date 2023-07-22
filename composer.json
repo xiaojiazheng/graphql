@@ -1,0 +1,19 @@
+{
+    "name": "xiaobe/graphql",
+    "description": "图表查询+变更服务",
+    "version": "1.0.0",
+    "license": "apache",
+    "autoload": {
+        "psr-4": {
+            "Xiaobe\\graphql\\": "graphql/"
+        }
+    },
+    "authors": [
+        {
+            "name": "xiaojiazheng",
+            "email": "2162621686@qq.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {}
+}
