@@ -2,7 +2,7 @@
     "name": "xiaobe/graphql",
     "description": "图表查询+变更服务",
     "version": "1.0.0",
-    "license": "apache",
+    "license": "Apache-2.0",
     "autoload": {
         "psr-4": {
             "Xiaobe\\graphql\\": "graphql/"
