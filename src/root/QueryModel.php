@@ -3,7 +3,6 @@
 namespace Xiaobe\Graphql\root;
 
 use support\Model;
-use Illuminate\Database\Query\Builder;
 use Xiaobe\Graphql\exception\HookSetException;
 use Xiaobe\Graphql\exception\queryrunning\ModelRunningException;
 
@@ -20,7 +19,7 @@ class QueryModel extends Model
     /**
      * 查询单例
      */
-    protected Builder $queryInstance;
+    protected $queryInstance = null;
     /**.
      * 关闭时间戳维护
      */
@@ -51,7 +50,7 @@ class QueryModel extends Model
     /**
      * 获取查询单例
      */
-    public function getqueryInstance(): Builder
+    public function getqueryInstance()
     {
         if (!$this->queryInstance)
             $this->queryInstance = $this->query();
@@ -153,7 +152,7 @@ class QueryModel extends Model
      * 只能放在最后一个钩子
      * 由于需要修改QLbody体properties字段
      */
-    protected function withSum(Builder $query, &$QLbody)
+    protected function withSum($query, &$QLbody)
     {
         if (isset($QLbody['sum'])) {
             if (isset($QLbody['sum']['order']) && $QLbody['sum']['order']) {
