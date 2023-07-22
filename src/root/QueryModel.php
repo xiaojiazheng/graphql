@@ -3,7 +3,6 @@
 namespace Xiaobe\Graphql\root;
 
 use support\Model;
-use Xiaobe\Graphql\exception\HookSetException;
 use Xiaobe\Graphql\exception\queryrunning\ModelRunningException;
 
 /**
@@ -35,17 +34,9 @@ class QueryModel extends Model
     public function executeQuery($QLbody)
     {
         $query = $this->getqueryInstance();
-        $this->withWhere($query, $QLbody['properties']);
+        $this->withWhere($QLbody['properties']);
         $this->withSum($query, $QLbody);
         return $this->gotSuccess($query, $QLbody);
-    }
-    /**
-     * 执行变更
-     * 没有实现一点功能
-     */
-    public function executeMutation($QLbody)
-    {
-        throw new HookSetException();
     }
     /**
      * 获取查询单例
@@ -60,8 +51,12 @@ class QueryModel extends Model
      * 实现自动化查询功能
      * 现在可以处理关联查询了
      */
-    protected function withWhere($query, &$prop, $withmode = false)
+    public function withWhere(&$prop, $query = null, $withmode = false)
     {
+        if (!$query)
+            $query = $this->getqueryInstance();
+        if (!$prop)
+            return $query;
         $withKey = array_keys($prop);
         foreach ($prop as $keyword => $value) {
             if (!$value && $value != 0) {
@@ -113,7 +108,7 @@ class QueryModel extends Model
                     }
                     // 嵌套关联查询
                     $query->with([$keyword => function ($query) use ($value) {
-                        $this->withWhere($query, $value, true);
+                        $this->withWhere($value, $query, true);
                     }]);
                     unset($prop[$keyword]);
                 }
@@ -124,6 +119,26 @@ class QueryModel extends Model
         if ($withmode) {
             $query->select($withKey);
         }
+        return $query;
+    }
+
+    /**
+     * 集合数组分页利器
+     */
+    public function withPaginate($result, $page = 1, $limit = 10)
+    {
+        if (!is_array($result)) $result =  toArray($result);
+        $start = ($page - 1) * $limit;
+        $total = count($result);
+
+        if ($start >= $total) {
+            return ['data' => [], 'total' => $total];
+        }
+
+        $end = min($start + $limit, $total);
+        $pagedData = array_slice($result, $start, $end - $start);
+
+        return ['data' => $pagedData, 'total' => $total];
     }
 
     /**
@@ -177,20 +192,51 @@ class QueryModel extends Model
             $sumFields = array_keys($QLbody['sum']);
             if ($sumFields) {
                 foreach ($sumFields as $field) {
+                    $sumFlag = true;
+                    if (is_array($QLbody['sum'][$field])) {
+                        foreach ($QLbody['sum'][$field] as $operator) {
+                            if (!$operator) continue;
+
+                            switch ($operator) {
+                                case '>':
+                                    $alias = "max_{$field}";
+                                    $query->selectRaw("MAX({$field}) AS {$alias}");
+                                    break;
+                                case '<':
+                                    $alias = "min_{$field}";
+                                    $query->selectRaw("MIN({$field}) AS {$alias}");
+                                    break;
+                                case '=':
+                                    $alias = "avg_{$field}";
+                                    $query->selectRaw("FORMAT(AVG({$field}), 4) AS {$alias}");
+                                    break;
+                                case '#':
+                                    $alias = "count_{$field}";
+                                    $query->selectRaw("COUNT({$field}) AS {$alias}");
+                                    break;
+                                case '#D':
+                                    $alias = "distinct_count_{$field}";
+                                    $query->selectRaw("COUNT(DISTINCT {$field}) AS {$alias}");
+                                    break;
+                                case '!S':
+                                    $sumFlag = false;
+                                    break;
+                            }
+                        }
+                    }
                     $alias = "sum_{$field}";
-                    $query->selectRaw("SUM({$field}) as {$alias}");
+                    $sumFlag && $query->selectRaw("SUM({$field}) AS {$alias}");
                 }
             }
         }
     }
-
     protected function gotSuccess($query, $QLbody)
     {
         $addition = $QLbody['addition'];
         $columns =  array_keys($QLbody['properties']);
         $limit = $addition['limit'] ?? 50;
         $page = $addition['page'] ?? 1;
-        $orderbys = $addition['orderby'];
+        $orderbys = $addition['orderby'] ?? [];
         foreach ($orderbys as $field => $direction) {
             $query->orderBy($field, $direction > 0 ? 'asc' : 'desc');
         }
@@ -228,23 +274,62 @@ class QueryModel extends Model
                 foreach ($needSum as $field) {
                     $groupSum['sum_' . $field] = 0;
                 }
-                array_map(function ($item) use ($needSum, &$groupSum) {
+                array_map(function ($item) use ($QLbody, $needSum, &$groupSum) {
                     foreach ($needSum as $field) {
                         $groupSum['sum_' . $field] += $item[$field] ?? $item['sum_' . $field];
+                        $sumType = $QLbody['sum'][$field];
+                        if (!$sumType)
+                            continue;
+                        if (is_array($sumType)) {
+                            foreach ($sumType as $operator) {
+                                switch ($operator) {
+                                    case '>':
+                                        $alias = "max_{$field}";
+                                        $groupSum[$alias] = isset($groupSum[$alias]) ? max($groupSum[$alias], $item[$alias]) : $item[$alias];
+                                        break;
+                                    case '<':
+                                        $alias = "min_{$field}";
+                                        $groupSum[$alias] = isset($groupSum[$alias]) ? min($groupSum[$alias], $item[$alias]) : $item[$alias];
+                                        break;
+                                    case '=':
+                                        //先加起来，后面除去
+                                        $alias = "avg_{$field}";
+                                        $groupSum[$alias] = isset($groupSum[$alias]) ? $groupSum[$alias] +  $item[$alias] : $item[$alias];
+                                        break;
+                                    default:
+                                        // 处理其他操作符的情况，可以抛出错误或者跳过该操作符
+                                        break;
+                                }
+                            }
+                        }
                     }
+                    //兼容两种分组
                     isset($item['total_count']) ? $groupSum['total_count'] += $item['total_count'] : '';
                 }, $value);
+
+                //实现关联字段分组的总数量计算
                 $groupSum['total_count'] == 0 ? $groupSum['total_count'] = count($value) : '';
                 $groupSum['group'] = $key; // 将分组的字段总和附加到分组集合中
 
-                // 将分组的字段总和保存到 $sum 数组中
-                foreach ($groupSum as &$one) {
-                    foreach ($groupSum as &$one) {
-                        if (!is_numeric($one))
-                            continue;
-                        $one = round(floatval($one), 8);
+                // 处理小数位数
+                foreach ($groupSum as $key => &$one) {
+                    if (!is_numeric($one) || !$one) {
+                        continue;
+                    }
+
+                    $one = floatval($one);
+
+                    /**
+                     * 如果在查询过程中计算了平均值又使用了关联字段分组
+                     * 处理查询结果分组中的平均值
+                     */
+                    if (strpos($key, "avg_") === 0) {
+                        $one = round($one / $groupSum['total_count'], 4);
+                    } else {
+                        $one = round($one, 4);
                     }
                 }
+
                 $returnArray[] = $groupSum;
             }
             if (isset($addition['limit'])) {
@@ -266,9 +351,17 @@ class QueryModel extends Model
             }
             return $groupedCollectionArray;
         }
-        if (isset($addition['limit']))
-            return $query->paginate($limit, $columns, 'page', $page);
-        else
-            return $query->take(100)->get($columns)->toArray();
+        $result = '';
+        if (isset($addition['limit'])) {
+            if (isset($QLbody['sum'])) {
+                $temp = $query->get();
+                $totalCount = $temp->sum('total_count');
+                $result = toArray($query->paginate($limit, $columns, 'page', $page));
+                $result['total_count'] = $totalCount;
+            } else
+                $result =  $query->paginate($limit, $columns, 'page', $page);
+        } else
+            $result =  $query->take(100)->get($columns)->toArray();
+        return $result;
     }
 }

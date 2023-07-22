@@ -2,8 +2,9 @@
 
 namespace Xiaobe\Graphql\root;
 
+use support\Db;
 use support\Request;
-use Xiaobe\Graphql\exception\HookSetException;
+use Xiaobe\Graphql\exception\MutationRunningException;
 use Xiaobe\Graphql\exception\queryrunning\QueryParseException;
 use Xiaobe\Graphql\exception\queryaccess\QueryNotAllowException;
 
@@ -51,17 +52,22 @@ use Xiaobe\Graphql\exception\queryaccess\QueryNotAllowException;
 abstract class GraphQLService
 {
   protected QueryModel $model;
+  protected MutationService $service;
   protected ModelMapper $modelMapper;
+  protected ServiceMapper $serviceMapper;
   protected string $action = '';
   protected array $disabledQuery = [];
-  protected array $disabledMutation = [];
   protected array $query = [];
   protected array $mutation = [];
 
   public function __construct()
   {
     $this->modelMapper = new ModelMapper();
+    $this->serviceMapper = new ServiceMapper();
   }
+  /**
+   * 主程序
+   */
   public function index(Request $request)
   {
     $this->GraphQLParse($request);
@@ -88,9 +94,7 @@ abstract class GraphQLService
       $this->action = 'mutation';
     }
   }
-  protected function setDisabled()
-  {
-  }
+  abstract protected function setDisabled();
   /**
    * $qlName 图表名
    * $propKeys prop里字段名，为索引数组
@@ -100,14 +104,6 @@ abstract class GraphQLService
     $this->disabledQuery[$qlName] = $propKeys;
   }
   /**
-   * $qlName 图表名
-   * $propKeys prop里字段名，为索引数组
-   */
-  protected function addMutationDisabled(string $qlName, array $propKeys)
-  {
-    $this->disabledMutation[$qlName] = $propKeys;
-  }
-  /**
    * 检查参数
    * 限制字段
    */
@@ -115,15 +111,16 @@ abstract class GraphQLService
   {
     $disablededKeys = [];
 
-    // 按照不同的操作进行设置允许的键
-    $disablededKeys = $action === 'query' ? $this->disabledQuery : $this->disabledMutation;
+    if ($action != 'query')
+      return;
+    $disablededKeys = $this->disabledQuery;
     if (empty($disablededKeys)) {
       return;
     }
 
-    $fields = $action === 'query' ? $this->query : $this->mutation;
+    $fields = $this->query;
     if (!is_array($fields)) {
-      throw new QueryParseException('从query或mutation解析参数失败', 1);
+      throw new QueryParseException('从query解析参数失败', 1);
     }
 
     foreach ($fields as  $query) {
@@ -170,8 +167,65 @@ abstract class GraphQLService
     return json_encode(['data' => $result, 'msg' => '查询成功', 'code' => 0], JSON_UNESCAPED_UNICODE);
   }
 
-  protected function executeMutation()
+  protected function executeMutation($try = false)
   {
-    throw new HookSetException();
+    if (!$try) {
+      // 执行的行为数量
+      $actionNum = 0;
+      /**
+       * 先判断是否为单服务
+       * 单服务不用启用事务
+       */
+      foreach ($this->mutation as $mutation) {
+        $qlName = array_keys($mutation)[0];
+        $args = $mutation[$qlName];
+        $actionNum += count($args);
+        if ($actionNum > 1) break;
+      }
+      if ($actionNum > 1) {
+        Db::beginTransaction();
+        try {
+          $result = $this->executeMutation(true);
+          Db::commit();
+          return $result;
+        } catch (\Exception $e) {
+          Db::rollBack();
+          throw new MutationRunningException($e->getMessage(), $e->getCode());
+        }
+      }
+    }
+    $result = [];
+    foreach ($this->mutation as $mutation) {
+      $qlName = array_keys($mutation)[0];
+      $args = $mutation[$qlName];
+      $this->service = $this->serviceMapper->getService($qlName);
+
+      $actionResult = [];
+      foreach ($args as $action => $data) {
+        $QLbody = [
+          'addition' => [],
+          'properties' => [],
+          'others' => [],
+        ];
+        if (isset($data['addition'])) {
+          $QLbody['addition'] = $data['addition'];
+        }
+        if (isset($data['other'])) {
+          $QLbody['others'] = $data['other'];
+        }
+        if (isset($data['prop'])) {
+          $QLbody['properties'] = $data['prop'];
+        }
+        $param = [
+          'name' => $qlName,
+          'data' => $QLbody
+        ];
+        $actionResult[$action] = $this->service->$action($param);
+      }
+
+      $result[] = [$qlName => $actionResult];
+    }
+    // 返回结果
+    return json_encode(['data' => $result, 'msg' => '操作成功', 'code' => 0], JSON_UNESCAPED_UNICODE);
   }
 }
