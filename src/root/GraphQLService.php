@@ -83,14 +83,14 @@ abstract class GraphQLService
    */
   protected function GraphQLParse(Request $request)
   {
-    $query = $request->get('query');
-    $mutation = $request->get('mutation');
+    $query = $request->input('query');
+    $mutation = $request->input('mutation');
 
     if ($query) {
-      $this->query = json_decode($query, true);
+      $this->query = is_array($query) ? $query : json_decode($query, true);
       $this->action = 'query';
     } else if ($mutation) {
-      $this->mutation = json_decode($mutation, true);
+      $this->mutation = is_array($mutation) ? $mutation : json_decode($mutation, true);
       $this->action = 'mutation';
     }
   }

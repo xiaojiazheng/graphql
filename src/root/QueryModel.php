@@ -53,8 +53,9 @@ class QueryModel extends Model
      */
     public function withWhere(&$prop, $query = null, $withmode = false)
     {
-        if (!$query)
+        if (!$query) {
             $query = $this->getqueryInstance();
+        }
         if (!$prop)
             return $query;
         $withKey = array_keys($prop);
@@ -106,10 +107,17 @@ class QueryModel extends Model
                     if ($withmode) {
                         $withKey = array_diff($withKey, [$keyword]);
                     }
-                    // 嵌套关联查询
-                    $query->with([$keyword => function ($query) use ($value) {
-                        $this->withWhere($value, $query, true);
-                    }]);
+                    $nestedWithQuery = function ($subQuery) use ($value) {
+                        $this->withWhere($value, $subQuery, true);
+                    };
+                    if (strpos($keyword, '*') === 0) {
+                        // 使用 whereHas() 方法影响主查询
+                        $query->whereHas($keyword, $nestedWithQuery);
+                    } else {
+                        // 嵌套关联查询
+                        $query->with($keyword, $nestedWithQuery);
+                    }
+                    // 将额外的限制条件应用到主查询
                     unset($prop[$keyword]);
                 }
             } else {
@@ -169,7 +177,8 @@ class QueryModel extends Model
      */
     protected function withSum($query, &$QLbody)
     {
-        if (isset($QLbody['sum'])) {
+
+        if ($QLbody['sum']) {
             if (isset($QLbody['sum']['order']) && $QLbody['sum']['order']) {
                 $sonOrder = [];
                 $order = array_filter($QLbody['sum']['order'], function ($value) use (&$sonOrder) {
@@ -351,17 +360,16 @@ class QueryModel extends Model
             }
             return $groupedCollectionArray;
         }
-        $result = '';
+
+        $result = $query->get($columns);
         if (isset($addition['limit'])) {
-            if (isset($QLbody['sum'])) {
-                $temp = $query->get();
-                $totalCount = $temp->sum('total_count');
-                $result = toArray($query->paginate($limit, $columns, 'page', $page));
+            if ($QLbody['sum']) {
+                $totalCount = $result->sum('total_count');
+                $result = $this->withPaginate($result,  $page, $limit);
                 $result['total_count'] = $totalCount;
             } else
-                $result =  $query->paginate($limit, $columns, 'page', $page);
-        } else
-            $result =  $query->take(100)->get($columns)->toArray();
+                $result =  $this->withPaginate($result, $page, $limit);
+        }
         return $result;
     }
 }

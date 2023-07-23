@@ -1,4 +1,4 @@
-<h1>图表查询和服务变更</h1>
+<h1>图表查询和变更服务</h1>
 
 <p>该本插件提供了在 Webman 环境下使用 Laravel ORM 模型进行图表查询和变更的功能。</p>
 
@@ -23,9 +23,7 @@
 
 <h2>变更服务配置</h2>
 
-<p>创建一个服务继承实现<code>MutationService</code>抽象类</p>
-
-<p>配置变更服务映射，即可启动</p>
+<p>暂定</p>
 
 <h2>使用方法</h2>
 
@@ -35,8 +33,48 @@
 
 <p>在你的控制器里中定义查询模型映射和每个模型禁用的字段：</p>
 
-<p>在你的控制器里中定义变更服务映射</p>
+<pre><code>
+namespace  Xiaobe\Graphql\test;
 
-<h3>许可证</h3>
+use Xiaobe\Graphql\root\GraphQLService;
 
-<p>该项目基于 MIT 许可证进行分发。更多信息请参阅 LICENSE 文件。</p>
+#### 介绍
+webman库
+请使用laraval ORM 其他自行兼容
+php 7.4
+
+#### 软件架构
+软件架构说明
+
+
+#### 安装教程
+
+1.  xxxx
+2.  xxxx
+3.  xxxx
+
+#### 使用说明
+
+1.  xxxx
+2.  xxxx
+3.  xxxx
+
+#### 参与贡献
+
+1.  Fork 本仓库
+2.  新建 Feat_xxx 分支
+3.  提交代码
+4.  新建 Pull Request
+
+
+#### 特技
+
+1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
+2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
+3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
+4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
+5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
+6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+
+许可证
+该项目基于 MIT 许可证进行分发。更多信息请参阅 LICENSE 文件。
