@@ -1,8 +1,8 @@
 <?php
 
-namespace  Xiaobe\Graphql\test;
+namespace  xiaobe\Graphql\test;
 
-use Xiaobe\Graphql\root\MutationService;
+use xiaobe\Graphql\root\MutationService;
 
 class TestService extends MutationService
 {

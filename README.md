@@ -34,9 +34,9 @@
 <p>在你的控制器里中定义查询模型映射和每个模型禁用的字段：</p>
 
 <pre><code>
-namespace  Xiaobe\Graphql\test;
+namespace  xiaobe\Graphql\test;
 
-use Xiaobe\Graphql\root\GraphQLService;
+use xiaobe\Graphql\root\GraphQLService;
 
 #### 介绍
 webman库

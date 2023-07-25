@@ -1,6 +1,6 @@
 <?php
 
-namespace  Xiaobe\Graphql\exception;
+namespace  xiaobe\Graphql\exception;
 
 use Exception;
 

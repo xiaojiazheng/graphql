@@ -1,8 +1,8 @@
 <?php
 
-namespace  Xiaobe\Graphql\exception\mutationaccess;
+namespace  xiaobe\Graphql\exception\mutationaccess;
 
-use Xiaobe\Graphql\exception\MutationAccessException;
+use xiaobe\Graphql\exception\MutationAccessException;
 
 class MutationNotFoundException extends MutationAccessException
 {

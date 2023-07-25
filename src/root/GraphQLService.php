@@ -1,12 +1,12 @@
 <?php
 
-namespace Xiaobe\Graphql\root;
+namespace xiaobe\Graphql\root;
 
 use support\Db;
 use support\Request;
-use Xiaobe\Graphql\exception\MutationRunningException;
-use Xiaobe\Graphql\exception\queryrunning\QueryParseException;
-use Xiaobe\Graphql\exception\queryaccess\QueryNotAllowException;
+use xiaobe\Graphql\exception\MutationRunningException;
+use xiaobe\Graphql\exception\queryrunning\QueryParseException;
+use xiaobe\Graphql\exception\queryaccess\QueryNotAllowException;
 
 
 /**

@@ -1,9 +1,9 @@
 <?php
 
-namespace  Xiaobe\Graphql\root;
+namespace  xiaobe\Graphql\root;
 
-use Xiaobe\Graphql\exception\queryaccess\ModelNotFoundException;
-use Xiaobe\Graphql\root\QueryModel;
+use xiaobe\Graphql\exception\queryaccess\ModelNotFoundException;
+use xiaobe\Graphql\root\QueryModel;
 
 
 /**

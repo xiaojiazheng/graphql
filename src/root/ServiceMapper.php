@@ -1,8 +1,8 @@
 <?php
 
-namespace  Xiaobe\Graphql\root;
+namespace  xiaobe\Graphql\root;
 
-use Xiaobe\Graphql\exception\mutationaccess\MutationNotFoundException;
+use xiaobe\Graphql\exception\mutationaccess\MutationNotFoundException;
 
 
 /**
