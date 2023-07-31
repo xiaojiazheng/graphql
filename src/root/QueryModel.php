@@ -2,9 +2,11 @@
 
 namespace xiaobe\Graphql\root;
 
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use support\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Database\Query\Builder;
 use xiaobe\Graphql\exception\WithHookParamException;
 use xiaobe\Graphql\exception\queryrunning\ModelRunningException;
 
@@ -50,6 +52,14 @@ class QueryModel extends Model
         if (!$this->queryInstance)
             $this->queryInstance = $this->query();
         return $this->queryInstance;
+    }
+    /**
+     * 重置查询实例
+     */
+    public function resetqueryInstance()
+    {
+        $this->queryInstance = $this->query();
+        return $this;
     }
     /**
      * 实现自动化查询功能
@@ -116,13 +126,17 @@ class QueryModel extends Model
                     $nestedWithQuery = function ($subQuery) use ($value) {
                         $this->withWhere($value, $subQuery, true);
                     };
-                    if (strpos($keyword, '*') === 0) {
+                    if (strpos($keyword, '_') === 0) {
+                        // 去掉关键字中的 *
+                        $trimKeyword = str_replace('_', '', $keyword);
                         // 使用 whereHas() 方法影响主查询
-                        $query->whereHas($keyword, $nestedWithQuery);
+                        $query->with($trimKeyword, $nestedWithQuery);
+                        $query->whereHas($trimKeyword, $nestedWithQuery);
                     } else {
                         // 嵌套关联查询
                         $query->with($keyword, $nestedWithQuery);
                     }
+
                     // 将额外的限制条件应用到主查询
                     unset($properties[$keyword]);
                 }
@@ -355,6 +369,7 @@ class QueryModel extends Model
     }
     /**
      * 暴漏给外部的，自动化查询求聚合函数
+     * @return mixed query
      */
     public function withQuerySum($QLbody, $query = null)
     {
@@ -364,7 +379,6 @@ class QueryModel extends Model
             return $query;
         }
         $this->withOrderBy($query, $QLbody);
-
         $order = $QLbody['sum']['order'] ?? null;
         unset($QLbody['sum']['order']);
 
@@ -372,10 +386,11 @@ class QueryModel extends Model
             return strpos($value, '.') === false;
         })))) : array_keys($QLbody['properties']);
 
-        $query->select($columns);
-        if ($order)
-            $query->groupBy($columns);
 
+        if ($order) {
+            $query->select($columns);
+            $query->groupBy($columns);
+        }
         $className = get_class($this);
         $className = get_class($this);
         $baseClassName = lcfirst(basename(str_replace('\\', '/', $className)));
@@ -383,42 +398,43 @@ class QueryModel extends Model
         $query->selectRaw('COUNT(*) as total_count');
         $query->selectRaw('COUNT(*) as total_' . $baseClassName . '_count');
         foreach ($QLbody['sum'] as $field => $operators) {
-            foreach ($operators as $operator) {
-                if (!$operator) {
-                    continue;
+            if (is_array($operators)) {
+                foreach ($operators as $operator) {
+                    if (!$operator) {
+                        continue;
+                    }
+
+                    $alias = '';
+
+                    switch ($operator) {
+                        case '>':
+                            $alias = "max_{$field}";
+                            $query->selectRaw("MAX({$field}) AS {$alias}");
+                            break;
+                        case '<':
+                            $alias = "min_{$field}";
+                            $query->selectRaw("MIN({$field}) AS {$alias}");
+                            break;
+                        case '=':
+                            $alias = "avg_{$field}";
+                            $query->selectRaw("FORMAT(AVG({$field}), 4) AS {$alias}");
+                            break;
+                        case '#':
+                            $alias = "count_{$field}";
+                            $query->selectRaw("COUNT({$field}) AS {$alias}");
+                            break;
+                        case '#D':
+                            $alias = "distinct_count_{$field}";
+                            $query->selectRaw("COUNT(DISTINCT {$field}) AS {$alias}");
+                            break;
+                        case '!S':
+                            continue 2;
+                            break;
+                    }
                 }
-
-                $alias = '';
-
-                switch ($operator) {
-                    case '>':
-                        $alias = "max_{$field}";
-                        $query->selectRaw("MAX({$field}) AS {$alias}");
-                        break;
-                    case '<':
-                        $alias = "min_{$field}";
-                        $query->selectRaw("MIN({$field}) AS {$alias}");
-                        break;
-                    case '=':
-                        $alias = "avg_{$field}";
-                        $query->selectRaw("FORMAT(AVG({$field}), 4) AS {$alias}");
-                        break;
-                    case '#':
-                        $alias = "count_{$field}";
-                        $query->selectRaw("COUNT({$field}) AS {$alias}");
-                        break;
-                    case '#D':
-                        $alias = "distinct_count_{$field}";
-                        $query->selectRaw("COUNT(DISTINCT {$field}) AS {$alias}");
-                        break;
-                    case '!S':
-                        continue 2;
-                        break;
-                }
-
-                $alias = "sum_{$field}";
-                $query->selectRaw("SUM({$field}) AS {$alias}");
             }
+            $alias = "sum_{$field}";
+            $query->selectRaw("SUM({$field}) AS {$alias}");
         }
         return $query;
     }
@@ -515,7 +531,7 @@ class QueryModel extends Model
         if (!$orderbys) return $collection;
 
         foreach ($orderbys as $field => $direction) {
-            $sortedCollection = $collection->sortBy($field, SORT_REGULAR, $direction > 0);
+            $sortedCollection = $collection->sortBy($field, SORT_REGULAR, $direction == 0);
         }
 
         return $sortedCollection->values()->toArray();
@@ -531,7 +547,7 @@ class QueryModel extends Model
     {
         $orderbys = $QLbody['addition']['orderby'] ?? [];
         foreach ($orderbys as $field => $direction) {
-            $query->orderBy($field, $direction > 0 ? 'asc' : 'desc');
+            $query->orderBy($field, $direction === 0 ? 'asc' : 'desc');
         }
         return $query;
     }

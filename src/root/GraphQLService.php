@@ -190,7 +190,7 @@ abstract class GraphQLService
           return $result;
         } catch (\Exception $e) {
           Db::rollBack();
-          throw new MutationRunningException($e->getMessage(), $e->getCode());
+          throw new MutationRunningException($e->getMessage(), (int)$e->getCode());
         }
       }
     }
@@ -204,11 +204,15 @@ abstract class GraphQLService
       foreach ($args as $action => $data) {
         $QLbody = [
           'addition' => [],
+          'sum' => [],
           'properties' => [],
           'others' => [],
         ];
         if (isset($data['addition'])) {
           $QLbody['addition'] = $data['addition'];
+        }
+        if (isset($data['sum'])) {
+          $QLbody['sum'] = $data['sum'];
         }
         if (isset($data['other'])) {
           $QLbody['others'] = $data['other'];

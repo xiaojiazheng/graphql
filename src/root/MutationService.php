@@ -54,8 +54,7 @@ abstract class MutationService
     if (isset($data[0])) {
       throw new WithHookParamException('批量编辑操作被阻止，只允许单条记录编辑', 212);
     }
-
-    return $model->withWhere($where)->update($data);
+    return $model->withWhere($where)->getqueryInstance()->update($data);
   }
 
   /**
