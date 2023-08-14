@@ -2,9 +2,7 @@
 
 namespace  xiaobe\Graphql\exception;
 
-use Exception;
-
-class WithHookParamException extends Exception
+class WithHookParamException extends \Exception
 {
   public function __construct($msg, $code)
   {

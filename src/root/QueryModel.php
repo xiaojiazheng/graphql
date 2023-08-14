@@ -2,11 +2,9 @@
 
 namespace xiaobe\Graphql\root;
 
-use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use support\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
-use Illuminate\Database\Query\Builder;
 use xiaobe\Graphql\exception\WithHookParamException;
 use xiaobe\Graphql\exception\queryrunning\ModelRunningException;
 
@@ -24,25 +22,11 @@ class QueryModel extends Model
      * 查询单例
      */
     protected $queryInstance = null;
-    /**.
+    /**
      * 关闭时间戳维护
      */
     public $timestamps = false;
 
-    /**
-     * 执行查询
-     * 实现
-     * 1.where 多条件 与或 模糊 精确 范围 包含
-     * 2.with 关联查询 递归关联查询 关联查询挑选列
-     * 2.order 根据主查询分组 求和
-     */
-    public function executeQuery($QLbody)
-    {
-        $query = $this->getqueryInstance();
-        $this->withWhere($QLbody['properties']);
-        $this->withSum($query, $QLbody);
-        return $this->gotSuccess($query, $QLbody);
-    }
     /**
      * 获取查询单例
      * 
@@ -62,8 +46,8 @@ class QueryModel extends Model
         return $this;
     }
     /**
-     * 实现自动化查询功能
-     * @param array $properties 图表查询的properties体，也就是输入体的prop属性，图标查询和变更服务会自动转化
+     * 查询条件配置转ORM查询操作
+     * @param array $properties 魔改查询语法
      * @param mixed  $query 查询对象，不指定默认从当前模型拿
      * @param boolean $withmode 递归处理关联查询用的，不用管
      */
@@ -72,7 +56,7 @@ class QueryModel extends Model
         if (!$query) {
             $query = $this->getqueryInstance();
         }
-        if (!$properties)
+        if (empty($properties))
             return $this;
         $withKey = array_keys($properties);
         foreach ($properties as $keyword => $value) {
@@ -152,51 +136,65 @@ class QueryModel extends Model
     /**
      * 轻量级编辑，根据某个字段，默认主键
      * @param array $data 需要编辑的数据
+     * @param array $uniqueKeys 业务上的唯一键
      * @param string $primaryKey 编辑操作依照的字段名，默认为模型定义的主键
      * @return int 受影响的行数
      */
-    public function withEdit(array $data, $primaryKey = null)
+    public function withEdit(array $data, array $uniqueKeys = [],  $primaryKey = null)
     {
         if (empty($data)) {
             return 0;
         }
-        if (!$primaryKey || !is_string($primaryKey)) {
+        if (!$primaryKey) {
             $primaryKey = $this->primaryKey;
         }
         if (!isset($data[$primaryKey])) {
             throw new WithHookParamException('编辑操作被阻止，必须提供有效的唯一键', 201);
         }
+        if ($uniqueKeys) {
+            $query = $this->getqueryInstance()->where($primaryKey, '<>', $data[$primaryKey]);
+            foreach ($uniqueKeys as $uniqueKey) {
+                $query->where($uniqueKey, $data[$uniqueKey]);
+            }
+            $exist  = $query->first();
+            if ($exist) {
+                return 0;
+            }
+            $this->resetqueryInstance();
+        }
+
         // 提取主键值
         $id = $data[$primaryKey];
         // 从$data数组中移除主键字段
         unset($data[$primaryKey]);
         // 执行更新操作
         $query = $this->getqueryInstance();
-        return $query->where($primaryKey, '=', $id)->update($data);
+        return $query->where($primaryKey, $id)->update($data);
     }
 
     /**
-     * 轻量级删除，根据某个字段删除，默认主键
-     * @param string $value 某字段的值
+     * 轻量级删除，根据某个字段删除，默认模型主键
+     * 支持单个，批量
+     * @param string $value 某字段的值索引数组
      * @param string $primaryKey 字段名，默认为模型定义的主键
      * @param string $softkey 是否软删除 为空不删除，否则指定字段设置为0
      */
-    public function withDel($value, $primaryKey = null, $softkey = null)
+    public function withDel(array $values, $primaryKey = null, $softkey = null)
     {
-        if (empty($value)) {
-            throw new WithHookParamException('删除操作被阻止，必须提供有效的唯一键', 101);
+        if (empty($values)) {
+            throw new WithHookParamException('删除操作被阻止，必须提供有效的唯一键值', 101);
         }
 
         if (!$primaryKey) {
             $primaryKey = $this->primaryKey;
         }
-        $query = $this->getqueryInstance();
+        $query = $this->getqueryInstance()->whereIn($primaryKey, $values);
         if ($softkey) {
             // 软删除，将指定字段值改为0
-            return $query->where($primaryKey, '=', $value)->update([$softkey => 0]);
+            return $query->update([$softkey => 1]);
         } else {
             // 直接删除
-            return $query->where($primaryKey, '=', $value)->delete();
+            return $query->delete();
         }
     }
     /**
@@ -251,10 +249,11 @@ class QueryModel extends Model
         }
     }
     /**
+     * 推荐使用
      * 集合数组分页利器
      * @return array 分页后的数组
      */
-    public function withPaginate($result, $page = 1, $limit = 10)
+    public static function withPaginate($result, $page = 1, $limit = 10)
     {
         if (!is_array($result)) $result =  toArray($result);
         $start = ($page - 1) * $limit;
@@ -268,6 +267,17 @@ class QueryModel extends Model
         $pagedData = array_slice($result, $start, $end - $start);
 
         return ['data' => $pagedData, 'total' => $total];
+    }
+    /**
+     * 推荐使用
+     * 查询分页利器
+     */
+    public function doPaginate($pageArray = [1, 10], $cols = ['*'], $query = null)
+    {
+        if (!$query)
+            $query = $this->getqueryInstance();
+        $result = $query->paginate($pageArray[1], $cols, 'page', $pageArray[0])->toArray();
+        return ['data' => $result['data'], 'total' => $result['total']];
     }
 
     /**
@@ -290,122 +300,35 @@ class QueryModel extends Model
             $query->$whereMethod($keyword, '=', $value);
         }
     }
-
     /**
-     * 实现总和功能
-     * 只能放在最后一个钩子
-     * 由于需要修改QLbody体properties字段
+     * 推荐使用
+     * 查询分组配置转ORM分组和求聚合操作
      */
-    protected function withSum($query, &$QLbody)
-    {
-        if ($QLbody['sum']) {
-            if (isset($QLbody['sum']['order']) && $QLbody['sum']['order']) {
-                $sonOrder = [];
-                $order = array_filter($QLbody['sum']['order'], function ($value) use (&$sonOrder) {
-                    $result = strpos($value, '.') === false;
-                    if (!$result) {
-                        $sonOrder[] = $value;
-                    }
-                    return $result;
-                });
-                unset($QLbody['sum']['order']);
-                if ($sonOrder) {
-                    $QLbody['addition']['groupBy'] = $sonOrder;
-                }
-                if (!$order) {
-                    return;
-                }
-                $QLbody['properties'] = array_intersect_key($QLbody['properties'], array_flip($order));
-                $columns = array_keys($QLbody['properties']);
-                $query->select($columns)->groupBy($columns);
-            }
-
-            $query->selectRaw('COUNT(*) as total_count');
-            $sumFields = array_keys($QLbody['sum']);
-
-            if ($sumFields) {
-                foreach ($sumFields as $field) {
-                    if (is_array($QLbody['sum'][$field])) {
-                        foreach ($QLbody['sum'][$field] as $operator) {
-                            if (!$operator) {
-                                continue;
-                            }
-
-                            switch ($operator) {
-                                case '>':
-                                    $alias = "max_{$field}";
-                                    $query->selectRaw("MAX({$field}) AS {$alias}");
-                                    break;
-                                case '<':
-                                    $alias = "min_{$field}";
-                                    $query->selectRaw("MIN({$field}) AS {$alias}");
-                                    break;
-                                case '=':
-                                    $alias = "avg_{$field}";
-                                    $query->selectRaw("FORMAT(AVG({$field}), 4) AS {$alias}");
-                                    break;
-                                case '#':
-                                    $alias = "count_{$field}";
-                                    $query->selectRaw("COUNT({$field}) AS {$alias}");
-                                    break;
-                                case '#D':
-                                    $alias = "distinct_count_{$field}";
-                                    $query->selectRaw("COUNT(DISTINCT {$field}) AS {$alias}");
-                                    break;
-                                case '!S':
-                                    continue 2; // Skip the field's SUM calculation
-                            }
-
-                            $alias = "sum_{$field}";
-                            $query->selectRaw("SUM({$field}) AS {$alias}");
-                        }
-                    } else {
-                        $alias = "sum_{$field}";
-                        $query->selectRaw("SUM({$field}) AS {$alias}");
-                    }
-                }
-            }
-        }
-    }
-    /**
-     * 暴漏给外部的，自动化查询求聚合函数
-     * @return mixed query
-     */
-    public function withQuerySum($QLbody, $query = null)
+    public function withGroupBy($group, $query = null)
     {
         if (!$query)
             $query = $this->getqueryInstance();
-        if (!$QLbody['sum']) {
-            return $query;
+        if (!$group) {
+            return $this;
         }
-        $this->withOrderBy($query, $QLbody);
-        $order = $QLbody['sum']['order'] ?? null;
-        unset($QLbody['sum']['order']);
-
-        $columns = $order ? array_keys(array_intersect_key($QLbody['properties'], array_flip(array_filter($order, function ($value) {
-            return strpos($value, '.') === false;
-        })))) : array_keys($QLbody['properties']);
-
-
-        if ($order) {
-            $query->select($columns);
-            $query->groupBy($columns);
+        $by = $group['groups'] ?? null;
+        unset($group['groups']);
+        if ($by) {
+            $query->select($by);
+            $query->groupBy($by);
         }
         $className = get_class($this);
         $className = get_class($this);
         $baseClassName = lcfirst(basename(str_replace('\\', '/', $className)));
-        if (isset($QLbody['sum']['total_count'])) unset($QLbody['sum']['total_count']);
         $query->selectRaw('COUNT(*) as total_count');
         $query->selectRaw('COUNT(*) as total_' . $baseClassName . '_count');
-        foreach ($QLbody['sum'] as $field => $operators) {
+        foreach ($group as $field => $operators) {
             if (is_array($operators)) {
                 foreach ($operators as $operator) {
                     if (!$operator) {
                         continue;
                     }
-
                     $alias = '';
-
                     switch ($operator) {
                         case '>':
                             $alias = "max_{$field}";
@@ -428,7 +351,7 @@ class QueryModel extends Model
                             $query->selectRaw("COUNT(DISTINCT {$field}) AS {$alias}");
                             break;
                         case '!S':
-                            continue 2;
+                            continue 3;
                             break;
                     }
                 }
@@ -436,167 +359,19 @@ class QueryModel extends Model
             $alias = "sum_{$field}";
             $query->selectRaw("SUM({$field}) AS {$alias}");
         }
-        return $query;
+        return $this;
     }
     /**
-     * 暴漏给外部的，自动化查集合求聚合函数
+     * 推荐使用
+     * 解析点记法的关联关系进行分组和求和
      */
-    public function withCollectionSum($collection, $QLbody)
+    public static function withGroupByRelation(Collection $collection, array $relations, array $sumFields, array $otherFields = null, $defaultGroup = '未分类')
     {
-        if ($QLbody['sum']) {
-            if (isset($QLbody['sum']['order']) && $QLbody['sum']['order']) {
-                $order = $QLbody['sum']['order'];
-                unset($QLbody['sum']['order']);
-                if ($order) {
-                    $columns = array_keys(array_intersect_key($QLbody['properties'], array_flip($order)));
-                    $collection = $collection->groupBy($columns);
-                }
-                $result = [];
-                $totalSum = [];
-                $sumFields = array_keys($QLbody['sum']);
-                if ($sumFields) {
-                    foreach ($collection as $key => $group) {
-                        $fieldResult = [];
-                        $first = $group->first()->toArray();
-                        foreach ($sumFields as $field) {
-                            $exist = isset($first[$field]);
-                            if (is_array($QLbody['sum'][$field])) {
-                                $operators = $QLbody['sum'][$field];
-                                foreach ($operators as $operator) {
-                                    if (!$operator) continue;
-                                    switch ($operator) {
-                                        case '>':
-                                            $maxValue = $group->max($exist ? $field : "max_{$field}");
-                                            $fieldResult["max_{$field}"] = $maxValue;
-                                            $totalSum["g_max_{$field}"] = ($totalSum["g_max_{$field}"] ?? 0) + $maxValue;
-                                            break;
-                                        case '<':
-                                            $minValue = $group->min($exist ? $field : "min_{$field}");
-                                            $fieldResult["min_{$field}"] = $minValue;
-                                            $totalSum["g_min_{$field}"] = ($totalSum["g_min_{$field}"] ?? 0) + $minValue;
-                                            break;
-                                        case '=':
-                                            $avgValue = $group->avg($exist ? $field : "avg_{$field}");
-                                            $fieldResult["avg_{$field}"] = round($avgValue, 8);
-                                            $totalSum["g_avg_{$field}"] = ($totalSum["g_avg_{$field}"] ?? 0) + $avgValue;
-                                            break;
-                                        case '!S':
-                                            continue 2;
-                                            break;
-                                    }
-                                }
-                            }
-                            $sumValue = $group->sum($exist ? $field : "sum_{$field}");
-                            $fieldResult["sum_{$field}"] = $sumValue;
-                            $totalSum["g_sum_{$field}"] = ($totalSum["g_sum_{$field}"] ?? 0) + $sumValue;
-                        }
-                        foreach ($order as $one) {
-                            if (isset($fieldResult[$one]) && $fieldResult[$one]) {
-                                break;
-                            }
-                            $first = $group->pluck($one)->toArray();
-
-                            if ($first[0]) {
-                                $fieldResult[$one] = $first[0];
-                            }
-                        }
-                        $fieldResult['group'] = !empty($key) ? $key : '无法分类';
-
-
-                        if (!isset($totalSum['g_sum_total_count'])) {
-                            $exist = isset($first['total_count']);
-                            $totalSum["sum_total_count"] = ($totalSum["sum_total_count"] ?? 0) +  $group->sum('total_count');
-                        }
-                        $result[] = $fieldResult;
-                    }
-                }
-                $return = $this->withCollectionOrderBy(collect($result), $QLbody);
-                if (isset($QLbody['addition']['limit'])) {
-                    $return = $this->withPaginate($result, $QLbody['addition']['page'], $QLbody['addition']['limit']);
-                }
-                $return = array_merge(['data' => $return], $totalSum);
-                return $return;
-            }
-        }
-        return [];
-    }
-    /**
-     * 暴漏给外部的，自动化集合排序函数
-     * 0 是顺序
-     * 1 逆序
-     */
-    public function withCollectionOrderBy(Collection $collection, $QLbody)
-    {
-        $orderbys = $QLbody['addition']['orderby'] ?? [];
-        if (!$orderbys) return $collection;
-
-        foreach ($orderbys as $field => $direction) {
-            $sortedCollection = $collection->sortBy($field, SORT_REGULAR, $direction == 0);
-        }
-
-        return $sortedCollection->values()->toArray();
-    }
-
-
-    /**
-     * 暴漏给外部的，自动化查询排序函数
-     * 0 是顺序
-     * 1 逆序
-     */
-    public function withOrderBy($query, $QLbody)
-    {
-        $orderbys = $QLbody['addition']['orderby'] ?? [];
-        foreach ($orderbys as $field => $direction) {
-            $query->orderBy($field, $direction === 0 ? 'asc' : 'desc');
-        }
-        return $query;
-    }
-    /**
-     * 这个函数尾巴有点大，找个时间优化
-     */
-    protected function gotSuccess($query, $QLbody)
-    {
-        $addition = $QLbody['addition'];
-        $columns = array_keys($QLbody['properties']);
-        $this->withOrderBy($query, $QLbody);
-        $limit = $addition['limit'] ?? 50;
-        $page = $addition['page'] ?? 1;
-
-        if (isset($addition['groupBy'])) {
-            $needSum = array_keys($QLbody['sum']);
-            $groupedCollection = $this->getGroupedCollection($query, $columns, $needSum, $QLbody);
-            $returnArray = $this->processGroupedCollection($groupedCollection, $needSum, $QLbody, $limit, $page);
-
-            return $returnArray;
-        }
-
-        $take =  isset($addition['take']) ? $addition['take'] : false;
-        if ($take) $query->take($take);
-        $result = $query->get($columns);
-
-        if (isset($addition['limit'])) {
-            if ($QLbody['sum']) {
-                $totalCount = $result->sum('total_count');
-                $result = $this->withPaginate($result, $page, $limit);
-                $result['total_count'] = $totalCount;
-            } else {
-                $result = $this->withPaginate($result, $page, $limit);
-            }
-        }
-
-        return $result;
-    }
-    /**
-     * 自用支持关联key集合分组
-     */
-    protected function getGroupedCollection($query, $columns, $needSum, $QLbody)
-    {
-        $collection = $query->get(array_merge($columns, $needSum));
-        $groupedCollection = $collection->groupBy(function ($item) use ($QLbody) {
-            $itemArray = toArray($item);
+        $groupedCollection = $collection->groupBy(function ($item) use ($relations, $defaultGroup) {
+            $itemArray = $item->toArray();
             $return = '';
 
-            foreach ($QLbody['addition']['groupBy'] as $oneBy) {
+            foreach ($relations as $oneBy) {
                 $by = explode('.', $oneBy);
                 $value = $itemArray;
 
@@ -607,7 +382,7 @@ class QueryModel extends Model
                     if (isset($value[$key])) {
                         $value = $value[$key];
                     } else {
-                        $value = '未分类';
+                        $value = $defaultGroup;
                         break;
                     }
                 }
@@ -617,40 +392,26 @@ class QueryModel extends Model
 
             return $return;
         });
-
-        return $groupedCollection;
-    }
-    /**
-     * 自用支持关联key集合分组后求和
-     */
-    protected function processGroupedCollection($groupedCollection, $needSum, $QLbody, $limit, $page)
-    {
-        $returnArray = [];
-        $start = ($page - 1) * $limit;
-        $total = 0; // 修复计算$total的问题
-
+        //dump($groupedCollection->toArray());
+        $return = [];
         foreach ($groupedCollection as $key => $value) {
             $groupSum = [];
             $groupSum['total_count'] = 0;
 
             if (!is_array($value)) {
-                $value = toArray($value); // 修复将对象转换为数组的问题
+                $value = $value->toArray(); // 修复将对象转换为数组的问题
             }
-            foreach ($needSum as $field) {
+            foreach ($sumFields as $field) {
                 $groupSum['sum_' . $field] = 0;
             }
 
-            array_map(function ($item) use ($QLbody, $needSum, &$groupSum) {
-                foreach ($needSum as $field) {
-                    $groupSum['sum_' . $field] += $item[$field] ?? $item['sum_' . $field];
-                    $sumType = $QLbody['sum'][$field];
-
-                    if (!$sumType) {
-                        continue;
-                    }
-
-                    if (is_array($sumType)) {
-                        foreach ($sumType as $operator) {
+            array_map(function ($item) use ($sumFields, $otherFields, &$groupSum) {
+                foreach ($sumFields as $field) {
+                    $groupSum['sum_' . $field] += $item[$field] ?? ($item['sum_' . $field] ?? 0);
+                }
+                if ($otherFields) {
+                    foreach ($otherFields as $field => $operators) {
+                        foreach ($operators as $operator) {
                             switch ($operator) {
                                 case '>':
                                     $alias = "max_{$field}";
@@ -666,44 +427,101 @@ class QueryModel extends Model
                                     $groupSum[$alias] = isset($groupSum[$alias]) ? $groupSum[$alias] +  $item[$alias] : $item[$alias];
                                     break;
                                 default:
-                                    // 处理其他操作符的情况，可以抛出错误或者跳过该操作符
+                                    continue 2;
                                     break;
                             }
                         }
                     }
                 }
-
+                $groupSum = $groupSum + $item;
                 //兼容两种分组
                 isset($item['total_count']) ? $groupSum['total_count'] += $item['total_count'] : '';
             }, $value);
+
             //实现关联字段分组的总数量计算
             $groupSum['total_count'] == 0 ? $groupSum['total_count'] = count($value) : '';
             $groupSum['group'] = $key; // 将分组的字段总和附加到分组集合中
 
-            foreach ($groupSum as $key => &$one) {
-                if (!is_numeric($one) || !$one) {
-                    continue;
-                }
+            if ($otherFields) {
+                foreach ($groupSum as $key => &$one) {
+                    if (!is_numeric($one) || !$one) {
+                        continue;
+                    }
 
-                $one = floatval($one);
+                    $one = floatval($one);
 
-                if (strpos($key, "avg_") === 0) {
-                    $one = round($one / $groupSum['total_count'], 4);
-                } else {
-                    $one = round($one, 4);
+                    if (strpos($key, "avg_") === 0) {
+                        $one = round($one / $groupSum['total_count'], 4);
+                    } else {
+                        $one = round($one, 4);
+                    }
                 }
             }
+            $return[] = $groupSum;
+        }
+        return $return;
+    }
+    /**
+     * 推荐使用
+     * 查询排序配置转ORM排序操作
+     */
+    public function withSort(array $param, $query = null)
+    {
+        if (!$query) {
+            $query = $this->getqueryInstance();
+        }
+        $orderbys = $param ?? [];
+        foreach ($orderbys as $field => $direction) {
+            $query->orderBy($field, $direction === 0 ? 'asc' : 'desc');
+        }
+        return $this;
+    }
+    /**
+     * 推荐使用
+     * 集合排序配置转集合排序操作
+     */
+    public static function withCollectionSort($collection, array $param)
+    {
+        $orderbys = $param ?? [];
+        if (!$orderbys) return $collection;
+        if (is_array($collection) && !($collection instanceof Collection)) $collection = collect($collection);
 
-            $returnArray[] = $groupSum;
-            $total += 1; // 每次循环添加元素后增加$total的值
+        foreach ($orderbys as $field => $direction) {
+            $sortedCollection = $collection->sortBy($field, SORT_REGULAR, $direction);
         }
 
-        if ($start >= $total) {
-            return ['data' => [], 'total' => $total];
-        }
-        $end = min($start + $limit, $total);
-        $pagedData = array_slice($returnArray, $start, $end - $start);
+        return $sortedCollection->values()->toArray();
+    }
+    /**
+     * 推荐使用 指定生成树
+     */
+    public static function generateTreeData($data, $mainField, $parentField)
+    {
+        $tree = array();
+        $references = array();
 
-        return ['data' => $pagedData, 'total' => $total];
+        // 构建引用关系数组
+        foreach ($data as $item) {
+            $itemId = $item[$mainField];
+            $parentId = $item[$parentField];
+
+            if (!isset($references[$itemId])) {
+                $references[$itemId] = array();
+            }
+
+            $item['children'] = &$references[$itemId];
+            $references[$parentId][] = &$item;
+        }
+
+        // 找到根节点，即没有父节点的节点
+        foreach ($data as $item) {
+            $parentId = $item[$parentField];
+
+            if (!isset($references[$parentId])) {
+                $tree[] = $item;
+            }
+        }
+
+        return $tree;
     }
 }
